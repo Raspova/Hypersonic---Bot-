@@ -1,9 +1,6 @@
 import sys
 import math
 
-# Auto-generated code below aims at helping you parse
-# the standard input according to the problem statement.
-
 # WEIGHT
 BOX_POS_W = -1000
 WALL_POS_W = -1500
@@ -52,12 +49,16 @@ class Bomb_info():
         self.bomb_reach = bomb_reach
 
 class Order:
-        def __init__(self, x , y , order, weight):
+        def __init__(self, x , y , order, weight, print_Addon = ""):
             self.x = x
             self.y = y
             self.order = order
             self.weight = weight
+            self.print = print_Addon
 
+        def print_order(self):
+            print( ("->> MOVE " if self.order == MOVE else "BOMB ") + str(self.x) + " " + str(self.y) + " " + self.print + '<', flush=True, file=sys.stderr)
+            
         def __str__(self):
             return str(self.x) + " " + str(self.y) + " " + str(self.order)
 
@@ -69,13 +70,13 @@ class Order:
 
         def execute(self, x_player, y_player):
             if (self.order == MOVE):
-                print("MOVE " + str(self.x) + " " + str(self.y) + " BONNUS (" + str(self.x) + "," + str(self.y) + ") " + str(self.weight))
+                print("MOVE " + str(self.x) + " " + str(self.y) + " MOVE (" + str(self.x) + "," + str(self.y) + ") " + str(self.weight) + self.print)
             elif (self.order == BOMB):
                 if (x_player == self.x and y_player == self.y):
-                    print("BOMB " + str(self.x) + " " + str(self.y) + " BOOM (" + str(self.x) + "," + str(self.y) + ") " + str(self.weight))
+                    print("BOMB " + str(self.x) + " " + str(self.y) + " BOOM (" + str(self.x) + "," + str(self.y) + ") " + str(self.weight) + self.print)
                 else:
-                    print("MOVE " + str(self.x) + " " + str(self.y) + " BOMB-> (" + str(self.x) + "," + str(self.y) + ") " + str(self.weight))
-  
+                    print("MOVE " + str(self.x) + " " + str(self.y) + " BOMB-> (" + str(self.x) + "," + str(self.y) + ") " + str(self.weight) + self.print)
+
 class Agent:
     def __init__(self, map_w, map_h, my_id):
         self.players = []
@@ -120,11 +121,11 @@ class Agent:
         self.players.sort(key=lambda x: x.id) 
     
     
-    def simulate_explosion(self, map, value, change_orignal_pos = True):
+    def simulate_explosion(self, map, value, change_orignal_pos = True, x_theoretical = -1, y_theoretical = -1):
         ret = [[map[y][x] for x in range(self.map_w)] for y in range(self.map_h)]
         for y in range(self.map_h):
             for x in range(len(ret[y])):
-                if self.map[y][x] in BOMB_:
+                if self.map[y][x] in BOMB_ or (y == y_theoretical and x == x_theoretical):
                     if (change_orignal_pos):
                         ret[y][x] = value
                     for _x in range(x + 1, x + self.range + 1) : # right
@@ -146,7 +147,7 @@ class Agent:
                             break
                         ret[_y][x] = value
                     for _y in range(y - 1, y - self.range - 1, -1) : # up
-                        if _y < 0 or (self.map[_y][x] != FREE and self.map[_y][_x] != 'P'): 
+                        if _y < 0 or (self.map[_y][x] != FREE and self.map[_y][x] != 'P'): 
                             if _y >= 0 and self.map[_y][x] in BOX :
                                 ret[_y][x] = value
                             break
@@ -160,14 +161,7 @@ class Agent:
         entity_nbr = int(input())
         for i in range(entity_nbr):
             entity_type, owner, x, y, param_1, param_2 = [int(j) for j in input().split()]
-            if entity_type == PLAYER : 
-                self.players[owner].update_info(x, y, param_1, param_2) # range update
-                self.range = param_2 - 1 
-                if (owner == self.my_id):
-                    self.map[y][x] = 'P'
-                else :
-                    self.map[y][x] = 'E'
-            elif entity_type == BOMB:
+            if entity_type == BOMB:
                 self.bombs.append(Bomb_info(owner, x, y, param_1, param_2))
                 if owner == self.my_id :
                     self.map[y][x] = 'A'
@@ -175,7 +169,13 @@ class Agent:
                     self.map[y][x] = 'B'      
             elif entity_type == ITEM:
                 self.bonnus_pos.append((x, y))
-         
+            if entity_type == PLAYER : 
+                self.players[owner].update_info(x, y, param_1, param_2) # range update
+                self.range = param_2 - 1 
+                if (owner == self.my_id):
+                    self.map[y][x] = 'P'
+                else :
+                    self.map[y][x] = 'E'
     def print_map(self):
         for y in range(self.map_h):
             for x in range(len(self.map[y])):
@@ -192,7 +192,7 @@ class Agent:
                 else :
                     self.bombing_weighted_map[y][x] = 0
         self.bonnus_weighted_map = [[(-100 if self.bombing_weighted_map[y][x] == 0 else self.bombing_weighted_map[y][x])
-                                     for x in range(self.map_w)] for y in range(self.map_h)]
+                                    for x in range(self.map_w)] for y in range(self.map_h)]
         # ADD THE BOX WEIGHT
         buff_map = self.simulate_explosion(self.map, FREE, False)
         for y in range(self.map_h):
@@ -244,7 +244,8 @@ class Agent:
         #        return self.best_moves[0]
         max_weight = -1000
         best_move =  Order(-1, -1, MOVE, -1) # check that 
-        reachable =  self.find_all_reachable_cells()
+        x_p, y_p = self.my_player_pos()
+        reachable =  self.find_all_reachable_cells(self.make_matrix_from_map(), x_p, y_p)
         for y in range(self.map_h):
             for x in range(self.map_w):
                 if (self.bombing_weighted_map[y][x] > max_weight and reachable[y][x] == 0):
@@ -252,38 +253,114 @@ class Agent:
                     best_move =  Order(x, y, BOMB, max_weight)
                 if (self.bonnus_weighted_map[y][x] > max_weight and reachable[y][x] == 0):
                     max_weight = self.bonnus_weighted_map[y][x]
-                    best_move =  Order(x, y, MOVE, max_weight)
+                    best_move =  Order(x, y, MOVE, max_weight, print_Addon=" BONNUS")
         if (best_move.order == BOMB):
+            reachable_with_bomb = self.simulate_explosion(reachable, 1, True)#, best_move.x, best_move.y
+            reachable_with_bomb = self.find_all_reachable_cells(reachable_with_bomb,  x_p, y_p)
+            # print("-----------------", file=sys.stderr, flush=True )
+            # for y in range(self.map_h):
+            #     for x in range(len(self.map[y])):
+            #         print(reachable_with_bomb[y][x], file=sys.stderr, flush=False, end='')
+            #     print("", file=sys.stderr, flush=False )
+            # print("-----------------", file=sys.stderr, flush=True )
+            reachable_with_bomb = self.simulate_explosion(reachable_with_bomb, 1, True, best_move.x, best_move.y)
+            if sum(row.count(0) for row in reachable_with_bomb) == 0: #BAN CELL 
+                x, y =  best_move.x, best_move.y
+                self.bombing_weighted_map[y][x] = -3000
+                self.bonnus_weighted_map[y][x] = -3000
+                return self.find_best_move()
+ 
+        def last_chance(x_b, y_b):
+            best_move =  Order(-1, -1, MOVE, -1)
+            if (x_b < 0 or x_b >= self.map_w or y_b < 0 or y_b >= self.map_h or (self.map[y_b][x_b] != FREE)):
+                return best_move 
+            dist = 1000
+            reachable = self.find_all_reachable_cells(self.make_matrix_from_map(), x_b, y_b)
             reachable_with_bomb = self.simulate_explosion(reachable, 1)
+            #print("-----------------", file=sys.stderr, flush=True )
+            #for y in range(self.map_h):
+            #    for x in range(len(self.map[y])):
+            #        print(reachable_with_bomb[y][x], file=sys.stderr, flush=False, end='')
+            #    print("", file=sys.stderr, flush=False )
+            ##reachable_with_bomb = self.find_all_reachable_cells(reachable_with_bomb,)  x_p, y_p
+            for y in range(self.map_h):
+                for x in range(self.map_w):
+                    if (reachable_with_bomb[y][x] == 0 and ((abs(y_b - y) + abs(x_b - x)) < dist)):
+                        dist = abs(y_b - y) + abs(x_b - x) 
+                        best_move =  Order(x, y, MOVE, dist, print_Addon="SAVE LIFE")
+                        #best_move.print_order()
+            #print("-----------------", file=sys.stderr, flush=True )
+            return best_move
+     
+            #if (best_move.x == -1):
+            #    best_move = last_chance(x_b + 1, y_b, best_move)
+            #    if best_move.x != -1:
+            #        return best_move
+            #    best_move = last_chance(x_b - 1, y_b, best_move)
+            #    if best_move.x != -1:
+            #        return best_move
+            #    best_move = last_chance(x_b , y_b  + 1, best_move)
+            #    if best_move.x != -1:
+            #        return best_move
+            #    best_move = last_chance(x_b , y_b - 1, best_move)
+            #    if best_move.x != -1:
+            #        return best_move
+            #else :
+            #    return best_move
+        dist = 1000
+        
+        if (best_move.weight < 0 or best_move.x == -1):
+            best_move = last_chance(x_p, y_p)
+        if (best_move.x == -1):
+            for y in range(self.map_h):
+                for x in range(self.map_w):
+                    buffer_move = last_chance(x, y)
+                    print("Dist " + str( abs(y_p - y) + abs(x_p - x)) + " x:" + buffer_move.x, file=sys.stderr, flush=True)
+                    if buffer_move.x != -1 and ((abs(y_p - y) + abs(x_p - x)) < dist) :
+                        dist = abs(y_p - y) + abs(x_p - x)
+                        best_move = Order(buffer_move.x, buffer_move.y, MOVE, dist, print_Addon="SAVE LIFE")
+                        best_move.print_order()
+                        #print("->Dist " + str(dist), file=sys.stderr, flush=True)
+        if (best_move.x == -1):
+            my_print("FUCK IT  " + str(best_move))
+            best_move = Order(x_p, y_p, MOVE, -1, " ERROR")
         return best_move
 
     # DEFT FIRST ALGO -> REACHABLE CELLS 
-    def find_all_reachable_cells(self):
-        matrix =  [[0 for j in range(self.map_w)] for i in range(self.map_h)]
+    def make_matrix_from_map(self):
+        matrix =  [[0 for j in range(self.map_w)] for i in range(self.map_h)] # check tha dnf work whit bomb too
         for y in range(self.map_h):
             for x in range(self.map_w):
-                if self.map[y][x] == FREE or  self.map[y][x] == 'P' or self.map[y][x] == 'A' :
+                if self.map[y][x] == FREE or  self.map[y][x] == 'P'  : #or self.map[y][x] == 'A'
                     matrix[y][x] = 0
                 else :
                     matrix[y][x] = 1
-        reachable = self.reachable_buffer
+        return matrix
+    
+    def find_all_reachable_cells(self, matrix, x , y):
+        # print("-----------------", file=sys.stderr, flush=True )
+        # for y in range(self.map_h):
+        #     for x in range(len(self.map[y])):
+        #         print(matrix[y][x], file=sys.stderr, flush=False, end='')
+        #     print("", file=sys.stderr, flush=False )
+        # print("-----------------", file=sys.stderr, flush=True )
+        reachable = [[self.reachable_buffer[i][j] for j in range(self.map_w)] for i in range(self.map_h)] # check tha dnf work whit bomb too
         def dfs(i, j):
             if i < 0 or i >= self.map_h or j < 0 or j >= self.map_w or matrix[i][j] == 1:
                 return
-            matrix[i][j] = 1 # mark as visited
             reachable[i][j] = 0
+            matrix[i][j] = 1 # mark as visited
             dfs(i + 1, j)
             dfs(i - 1, j)
             dfs(i, j + 1)
             dfs(i, j - 1)
-        x , y = self.my_player_pos()
         dfs(y, x)
-        print("-----------------", file=sys.stderr, flush=True )
-        for y in range(self.map_h):
-            for x in range(len(self.map[y])):
-                print(reachable[y][x], file=sys.stderr, flush=False, end='')
-            print("", file=sys.stderr, flush=False )
-        print("-----------------", file=sys.stderr, flush=True )
+        # print("-----------------", file=sys.stderr, flush=True )
+        # for y in range(self.map_h):
+            # for x in range(len(self.map[y])):
+                # print(reachable[y][x], file=sys.stderr, flush=False, end='')
+            # print("", file=sys.stderr, flush=False )
+        # print("-----------------", file=sys.stderr, flush=True )
         return reachable
     
     def update(self):
@@ -302,4 +379,4 @@ print(("Move 0 0"))
 
 while True:
     agent.update()
-    
+        
