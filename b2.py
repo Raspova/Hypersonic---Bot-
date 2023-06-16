@@ -415,34 +415,12 @@ class Agent:
         order  = self.find_best_move()
         x ,y = self.my_player_pos()
         if (order.order == BOMB and x  == order.x and y == order.y):
-            up, down, left, right = 1,1,1,1
-            if y > 0:
-                up = self.matrix_reachable[y-1][x]
-            if y < self.map_h - 1:
-                down = self.matrix_reachable[y+1][x]
-            if x > 0:
-                left = self.matrix_reachable[y][x-1]
-            if x < self.map_w - 1:
-                right = self.matrix_reachable[y][x+1]
-            count = [up, down, left, right].count(0)
-            if count == 0:
-                print("BOMB ",x, y) # CHANGE That
-            elif count >= 1:
-                if up == 0:
-                    print("BOMB ",x, y-1)
-                elif down == 0:
-                    print("BOMB ",x, y+1)
-                elif left == 0:
-                    print("BOMB ",x-1, y)
-                elif right == 0:
-                    print("BOMB ",x+1, y)
-            #else : > GRAND 0
-            #    for i in range(4):
+            print("BOMB ",x, y) # CHANGE That
+              #    for i in range(4):
             #        if [up, down, left, right][i] == 0:
             #            
             #            print("BOMB ",x, y)
             #            break   
-            #order.execute(x, y)
             
         else:
             route = self.shortest_path((order.x, order.y))
