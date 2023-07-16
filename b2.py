@@ -407,6 +407,8 @@ class Agent:
                 return False
         return True
 
+    def better_path_findin(self, target):
+        return True #TODO
                     
     
     def update(self):
